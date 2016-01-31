@@ -1,0 +1,4 @@
+[package]
+name = "gameboy_emu"
+version = "0.1.0"
+authors = ["Peter Arato <it.arato@gmail.com>"]
