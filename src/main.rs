@@ -40,9 +40,16 @@ impl GameBoy {
 
     fn turn_on(&mut self) {
         self.cpu.boot();
+        self.copy_rom_to_memory();
 
         loop {
-            self.cpu.next_instruction(&self.rom);
+            self.cpu.next_instruction(&self.ram);
+        }
+    }
+
+    fn copy_rom_to_memory(&mut self,) {
+        for idx in 0..self.rom.len() {
+            self.ram[idx] = self.rom[idx];
         }
     }
 }
