@@ -40,7 +40,10 @@ impl GameBoy {
 
     fn turn_on(&mut self) {
         self.cpu.boot();
-        self.cpu.run();
+
+        loop {
+            self.cpu.next_instruction(&self.rom);
+        }
     }
 }
 
@@ -80,14 +83,30 @@ struct CPU {
 
 impl CPU {
     fn new() -> CPU {
-        CPU::default()
+        CPU {
+            pc: 0x0000,
+            ..Default::default()
+        }
     }
 
     fn boot(&self) {
 
     }
 
-    fn run(&mut self) {
+    fn next_instruction(&mut self, mem: &[u8])  {
+        let opcode = self.read_opcode(mem);
+        self.pc += 1;
+        println!("Opcode read: {:#x} ({:#b})", opcode, opcode);
 
+        match opcode {
+            // LD SP ?
+            0x31 => {
+            },
+            _ => panic!("Unknown opcode {:#x} ({:#b})", opcode, opcode),
+        };
+    }
+
+    fn read_opcode(&self, mem: &[u8]) -> u8 {
+        mem[self.pc as usize]
     }
 }
