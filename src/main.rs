@@ -41,8 +41,11 @@ impl GameBoy {
         self.cpu.reset();
         self.copy_rom_to_memory();
 
+        println!("CPU {:#?}", self.cpu);
+
         loop {
             self.cpu.next_instruction(&self.ram);
+            println!("CPU {:#?}", self.cpu);
         }
     }
 
@@ -53,7 +56,7 @@ impl GameBoy {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct CPU {
     // Main registers.
     acc_a: u8,
@@ -113,6 +116,20 @@ impl CPU {
                         0b10 => { self.acc_h = vhigh; self.flag_l = vlow; }, // HL
                         0b11 => { self.sp = (vhigh as u16) << 8 | (vlow as u16); }, // SP
                         _ => unreachable!(),
+                    }
+
+                // XOR s.
+                } else if self.bit_match(0b10101000, 0b11111000, opcode) {
+                    match opcode & 0b111 {
+                        // TODO review if it's properly stored in the same acc reg.
+                        000 => { self.acc_b ^= self.acc_b; },
+                        001 => { self.flag_c ^= self.flag_c; },
+                        010 => { self.acc_d ^= self.acc_d; },
+                        011 => { self.flag_e ^= self.flag_e; },
+                        100 => { self.acc_h ^= self.acc_h; },
+                        101 => { self.flag_l ^= self.flag_l; },
+                        111 => { self.acc_a ^= self.acc_a; },
+                        reg @ _ => panic!("Xor reg {:#b} should be handled in the strict opcode match section", reg),
                     }
                 } else {
                     panic!("Unknown opcode {:#x} ({:#b})", opcode, opcode);
