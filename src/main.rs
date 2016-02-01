@@ -8,7 +8,7 @@ use std::default;
 
 fn main() {
     if args().count() < 2 {
-        panic!("Missing argument(s). Call: ./binary <DMG ROM file name>.");
+        panic!("Missing argument(s). Call: ./binary <DMG_ROM_FILE>.");
     }
 
     let dmg_rom_name = args().nth(1).unwrap();
@@ -26,7 +26,6 @@ struct GameBoy {
     cpu: CPU,
     rom: Vec<u8>,
     ram: [u8; RAM_SIZE],
-
 }
 
 impl GameBoy {
@@ -39,7 +38,7 @@ impl GameBoy {
     }
 
     fn turn_on(&mut self) {
-        self.cpu.boot();
+        self.cpu.reset();
         self.copy_rom_to_memory();
 
         loop {
@@ -79,7 +78,7 @@ struct CPU {
     flag_alt_l: u8,
 
     // Special purpose registers.
-    int_vec_i: u8,
+    int_vec: u8,
     mem_refresh: u8,
 
     ix: u16, // Might not exist in LR35902.
@@ -90,30 +89,53 @@ struct CPU {
 
 impl CPU {
     fn new() -> CPU {
-        CPU {
-            pc: 0x0000,
-            ..Default::default()
-        }
+        CPU::default()
     }
 
-    fn boot(&self) {
-
+    fn reset(&mut self) {
+        // Point to first instruction.
+        self.pc = 0x0000;
     }
 
     fn next_instruction(&mut self, mem: &[u8])  {
         let opcode = self.read_opcode(mem);
-        self.pc += 1;
         println!("Opcode read: {:#x} ({:#b})", opcode, opcode);
 
         match opcode {
-            // LD SP ?
-            0x31 => {
+            _ => {
+                // LD dd, nn.
+                if self.bit_match(0b00000001, 0b11001111, opcode) {
+                    let vhigh = self.read_byte(mem);
+                    let vlow = self.read_byte(mem);
+                    match opcode >> 4 & 0b11 {
+                        0b00 => { self.acc_b = vhigh; self.flag_c = vlow; }, // BC
+                        0b01 => { self.acc_d = vhigh; self.flag_e = vlow; }, // DE
+                        0b10 => { self.acc_h = vhigh; self.flag_l = vlow; }, // HL
+                        0b11 => { self.sp = (vhigh as u16) << 8 | (vlow as u16); }, // SP
+                        _ => unreachable!(),
+                    }
+                } else {
+                    panic!("Unknown opcode {:#x} ({:#b})", opcode, opcode);
+                }
             },
-            _ => panic!("Unknown opcode {:#x} ({:#b})", opcode, opcode),
         };
     }
 
-    fn read_opcode(&self, mem: &[u8]) -> u8 {
-        mem[self.pc as usize]
+    /// Compare fixed and dynamic bits.
+    /// Example requirement:    0b00??0001
+    /// Example pattern:        0b00000001
+    /// Example mask:           0b11001111
+    fn bit_match(&self, pattern: u8, mask: u8, opcode: u8) -> bool {
+        (opcode & mask) ^ pattern == 0
+    }
+
+    fn read_opcode(&mut self, mem: &[u8]) -> u8 {
+        self.read_byte(mem)
+    }
+
+    fn read_byte(&mut self, mem: &[u8]) -> u8 {
+        let byte = mem[self.pc as usize];
+        self.pc += 1;
+        byte
     }
 }
