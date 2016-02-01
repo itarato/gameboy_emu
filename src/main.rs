@@ -41,14 +41,15 @@ impl GameBoy {
         self.cpu.reset();
         self.copy_rom_to_memory();
 
-        println!("CPU {:#?}", self.cpu);
+        println!("{:#?}", self.cpu);
 
         loop {
             self.cpu.next_instruction(&self.ram);
-            println!("CPU {:#?}", self.cpu);
+            println!("{:#?}", self.cpu);
         }
     }
 
+    // TODO make sure its copied to the right place (maybe keep separate?)
     fn copy_rom_to_memory(&mut self,) {
         for idx in 0..self.rom.len() {
             self.ram[idx] = self.rom[idx];
@@ -57,35 +58,29 @@ impl GameBoy {
 }
 
 #[derive(Default, Debug)]
+struct Flags {
+    z_zero: bool,
+    n_substract: bool,
+    h_half_carry: bool,
+    c_carry: bool,
+}
+
+#[derive(Default, Debug)]
 struct CPU {
-    // Main registers.
+    // Main register set.
     acc_a: u8,
-    acc_b: u8,
-    acc_d: u8,
-    acc_h: u8,
+    flag_f: Flags,
 
-    flag_f: u8,
-    flag_c: u8,
-    flag_e: u8,
-    flag_l: u8,
+    // General purpose registers.
+    b: u8,
+    d: u8,
+    h: u8,
 
-    // Alternative registers.
-    acc_alt_a: u8,
-    acc_alt_b: u8,
-    acc_alt_d: u8,
-    acc_alt_h: u8,
-
-    flag_alt_f: u8,
-    flag_alt_c: u8,
-    flag_alt_e: u8,
-    flag_alt_l: u8,
+    c: u8,
+    e: u8,
+    l: u8,
 
     // Special purpose registers.
-    int_vec: u8,
-    mem_refresh: u8,
-
-    ix: u16, // Might not exist in LR35902.
-    iy: u16, // Might not exist in LR35902.
     sp: u16,
     pc: u16,
 }
@@ -105,15 +100,18 @@ impl CPU {
         println!("Opcode read: {:#x} ({:#b})", opcode, opcode);
 
         match opcode {
+            // LD (HL-),A.
+            0b00110010 => {
+                // TODO need to write to memory
+            },
             _ => {
                 // LD dd, nn.
                 if self.bit_match(0b00000001, 0b11001111, opcode) {
-                    let vhigh = self.read_byte(mem);
-                    let vlow = self.read_byte(mem);
+                    let (vlow, vhigh) = self.read_low_high(mem);
                     match opcode >> 4 & 0b11 {
-                        0b00 => { self.acc_b = vhigh; self.flag_c = vlow; }, // BC
-                        0b01 => { self.acc_d = vhigh; self.flag_e = vlow; }, // DE
-                        0b10 => { self.acc_h = vhigh; self.flag_l = vlow; }, // HL
+                        0b00 => { self.b = vhigh; self.c = vlow; }, // BC
+                        0b01 => { self.d = vhigh; self.e = vlow; }, // DE
+                        0b10 => { self.h = vhigh; self.l = vlow; }, // HL
                         0b11 => { self.sp = (vhigh as u16) << 8 | (vlow as u16); }, // SP
                         _ => unreachable!(),
                     }
@@ -122,13 +120,13 @@ impl CPU {
                 } else if self.bit_match(0b10101000, 0b11111000, opcode) {
                     match opcode & 0b111 {
                         // TODO review if it's properly stored in the same acc reg.
-                        000 => { self.acc_b ^= self.acc_b; },
-                        001 => { self.flag_c ^= self.flag_c; },
-                        010 => { self.acc_d ^= self.acc_d; },
-                        011 => { self.flag_e ^= self.flag_e; },
-                        100 => { self.acc_h ^= self.acc_h; },
-                        101 => { self.flag_l ^= self.flag_l; },
-                        111 => { self.acc_a ^= self.acc_a; },
+                        0b000 => { self.b ^= self.b; },
+                        0b001 => { self.c ^= self.c; },
+                        0b010 => { self.d ^= self.d; },
+                        0b011 => { self.e ^= self.e; },
+                        0b100 => { self.h ^= self.h; },
+                        0b101 => { self.l ^= self.l; },
+                        0b111 => { self.acc_a ^= self.acc_a; },
                         reg @ _ => panic!("Xor reg {:#b} should be handled in the strict opcode match section", reg),
                     }
                 } else {
@@ -151,8 +149,11 @@ impl CPU {
     }
 
     fn read_byte(&mut self, mem: &[u8]) -> u8 {
-        let byte = mem[self.pc as usize];
         self.pc += 1;
-        byte
+        mem[(self.pc - 1) as usize]
+    }
+
+    fn read_low_high(&mut self, mem: &[u8]) -> (u8, u8) {
+        (self.read_byte(mem), self.read_byte(mem))
     }
 }
