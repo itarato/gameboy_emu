@@ -9,6 +9,12 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 fn main() {
+    GameBoy
+        ::new(fetch_dmg_boot_rom())
+        .turn_on();
+}
+
+fn fetch_dmg_boot_rom() -> Vec<u8> {
     if args().count() < 2 {
         panic!("Missing argument(s). Call: ./binary <DMG_ROM_FILE>.");
     }
@@ -18,8 +24,7 @@ fn main() {
     let mut rom: Vec<u8> = Vec::new();
     let _ = rom_file.read_to_end(&mut rom);
 
-    let mut gameboy = GameBoy::new(rom);
-    gameboy.turn_on()
+    rom
 }
 
 const RAM_SIZE: usize = 0xFFFF;
