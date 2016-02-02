@@ -43,6 +43,10 @@ impl Bus {
     fn read_byte(&self, pos: usize) -> u8 {
         self.mem.borrow()[pos]
     }
+
+    fn write_byte(&mut self, pos: usize, byte: u8) {
+        self.mem.borrow_mut()[pos] = byte;
+    }
 }
 
 struct GameBoy {
@@ -71,12 +75,13 @@ impl GameBoy {
         println!("{:#?}", self.cpu);
 
         loop {
-            self.cpu.next_instruction(&self.bus);
+            self.cpu.next_instruction(&mut self.bus);
             println!("{:#?}", self.cpu);
         }
     }
 
     // TODO make sure its copied to the right place (maybe keep separate?)
+    // TODO think about moving this operation to the bus so GameBoy does not need a mutable refcell of mem.
     fn copy_rom_to_memory(&mut self) {
         for idx in 0..self.boot_rom.len() {
             self.ram.borrow_mut()[idx] = self.boot_rom[idx];
@@ -95,8 +100,8 @@ struct Flags {
 #[derive(Default, Debug)]
 struct CPU {
     // Main register set.
-    acc_a: u8,
-    flag_f: Flags,
+    acc: u8,
+    flag: Flags,
 
     // General purpose registers.
     b: u8,
@@ -122,14 +127,25 @@ impl CPU {
         self.pc = 0x0000;
     }
 
-    fn next_instruction(&mut self, bus: &Bus)  {
+    fn next_instruction(&mut self, bus: &mut Bus)  {
         let opcode = self.read_opcode(bus);
         println!("Opcode read: {:#x} ({:#b})", opcode, opcode);
 
         match opcode {
             // LD (HL-),A.
             0b00110010 => {
-                // TODO need to write to memory
+                let mut addr = ((self.h as u16) << 8) | (self.l as u16);
+                bus.write_byte(addr as usize, self.acc);
+
+                // TODO make it func or macro.
+                if addr == 0 {
+                    panic!("Address reg HL is zero, cannot be decremented");
+                }
+
+                addr -= 1;
+                // TODO make it a func or macro.
+                self.h = (addr >> 8) as u8;
+                self.l = (addr & 0xFF) as u8;
             },
             _ => {
                 // LD dd, nn.
@@ -153,7 +169,7 @@ impl CPU {
                         0b011 => { self.e ^= self.e; },
                         0b100 => { self.h ^= self.h; },
                         0b101 => { self.l ^= self.l; },
-                        0b111 => { self.acc_a ^= self.acc_a; },
+                        0b111 => { self.acc ^= self.acc; },
                         reg @ _ => panic!("Xor reg {:#b} should be handled in the strict opcode match section", reg),
                     }
                 } else {
