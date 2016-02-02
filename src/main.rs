@@ -5,6 +5,8 @@ use std::env::{args};
 use std::fs::{File};
 use std::io::{Read};
 use std::default;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 fn main() {
     if args().count() < 2 {
@@ -22,18 +24,38 @@ fn main() {
 
 const RAM_SIZE: usize = 0xFFFF;
 
+struct Bus {
+    mem: Rc<RefCell<[u8]>>,
+}
+
+impl Bus {
+    fn new(mem: Rc<RefCell<[u8]>>) -> Bus {
+        Bus {
+            mem: mem
+        }
+    }
+
+    fn read_byte(&self, pos: usize) -> u8 {
+        self.mem.borrow()[pos]
+    }
+}
+
 struct GameBoy {
     cpu: CPU,
-    rom: Vec<u8>,
-    ram: [u8; RAM_SIZE],
+    boot_rom: Vec<u8>,
+    ram: Rc<RefCell<[u8; RAM_SIZE]>>,
+    bus: Bus,
 }
 
 impl GameBoy {
-    fn new(rom: Vec<u8>) -> GameBoy {
+    fn new(boot_rom: Vec<u8>) -> GameBoy {
+        let ram = Rc::new(RefCell::new([0; RAM_SIZE]));
+
         GameBoy {
-            rom: rom,
+            boot_rom: boot_rom,
             cpu: CPU::new(),
-            ram: [0; RAM_SIZE],
+            ram: ram.clone(),
+            bus: Bus::new(ram.clone()),
         }
     }
 
@@ -44,15 +66,15 @@ impl GameBoy {
         println!("{:#?}", self.cpu);
 
         loop {
-            self.cpu.next_instruction(&self.ram);
+            self.cpu.next_instruction(&self.bus);
             println!("{:#?}", self.cpu);
         }
     }
 
     // TODO make sure its copied to the right place (maybe keep separate?)
-    fn copy_rom_to_memory(&mut self,) {
-        for idx in 0..self.rom.len() {
-            self.ram[idx] = self.rom[idx];
+    fn copy_rom_to_memory(&mut self) {
+        for idx in 0..self.boot_rom.len() {
+            self.ram.borrow_mut()[idx] = self.boot_rom[idx];
         }
     }
 }
@@ -95,8 +117,8 @@ impl CPU {
         self.pc = 0x0000;
     }
 
-    fn next_instruction(&mut self, mem: &[u8])  {
-        let opcode = self.read_opcode(mem);
+    fn next_instruction(&mut self, bus: &Bus)  {
+        let opcode = self.read_opcode(bus);
         println!("Opcode read: {:#x} ({:#b})", opcode, opcode);
 
         match opcode {
@@ -107,7 +129,7 @@ impl CPU {
             _ => {
                 // LD dd, nn.
                 if self.bit_match(0b00000001, 0b11001111, opcode) {
-                    let (vlow, vhigh) = self.read_low_high(mem);
+                    let (vlow, vhigh) = self.read_low_high(bus);
                     match opcode >> 4 & 0b11 {
                         0b00 => { self.b = vhigh; self.c = vlow; }, // BC
                         0b01 => { self.d = vhigh; self.e = vlow; }, // DE
@@ -144,16 +166,17 @@ impl CPU {
         (opcode & mask) ^ pattern == 0
     }
 
-    fn read_opcode(&mut self, mem: &[u8]) -> u8 {
-        self.read_byte(mem)
+    fn read_opcode(&mut self, bus: &Bus) -> u8 {
+        self.read_byte(bus)
     }
 
-    fn read_byte(&mut self, mem: &[u8]) -> u8 {
+    fn read_byte(&mut self, bus: &Bus) -> u8 {
         self.pc += 1;
-        mem[(self.pc - 1) as usize]
+        bus.read_byte((self.pc - 1) as usize)
     }
 
-    fn read_low_high(&mut self, mem: &[u8]) -> (u8, u8) {
-        (self.read_byte(mem), self.read_byte(mem))
+    fn read_low_high(&mut self, bus: &Bus) -> (u8, u8) {
+        (self.read_byte(bus), self.read_byte(bus))
     }
+
 }
