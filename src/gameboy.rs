@@ -28,11 +28,9 @@ impl GameBoy {
         self.cpu.reset();
         self.copy_rom_to_memory();
 
-        println!("{:#?}", self.cpu);
-
         loop {
             self.cpu.next_instruction(&mut self.bus);
-            println!("{:#?}", self.cpu);
+            // println!("{:#?}", self.cpu);
         }
     }
 

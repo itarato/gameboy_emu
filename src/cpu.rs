@@ -40,7 +40,6 @@ impl CPU {
 
     pub fn next_instruction(&mut self, bus: &mut Bus)  {
         let opcode = self.read_opcode(bus);
-        println!("Opcode read: {:#x} ({:#b})", opcode, opcode);
 
         match opcode {
             // LD (HL-),A.
@@ -65,38 +64,46 @@ impl CPU {
                     self.pc = ((self.pc as i16) + ((addr as i8) as i16)) as u16;
                 }
             },
+            // LD BC,d16.
+            0b0000_0001 => {
+                let (vlow, vhigh) = self.read_low_high(bus);
+                self.c = vlow;
+                self.b = vhigh;
+            },
+            // LD DE,d16.
+            0b0001_0001 => {
+                let (vlow, vhigh) = self.read_low_high(bus);
+                self.e = vlow;
+                self.d = vhigh;
+            },
+            // LD HL,d16.
+            0b0010_0001 => {
+                let (vlow, vhigh) = self.read_low_high(bus);
+                self.l = vlow;
+                self.h = vhigh;
+            },
+            // LD SP,d16.
+            0b0011_0001 => {
+                let (vlow, vhigh) = self.read_low_high(bus);
+                self.sp = (vhigh as u16) << 8 | (vlow as u16);
+            },
+            // XOR B.
+            0b1010_1000 => self.b ^= self.b,
+            // XOR C.
+            0b1010_1001 => self.c ^= self.c,
+            // XOR D.
+            0b1010_1010 => self.d ^= self.d,
+            // XOR E.
+            0b1010_1011 => self.e ^= self.e,
+            // XOR H.
+            0b1010_1100 => self.h ^= self.h,
+            // XOR L.
+            0b1010_1101 => self.l ^= self.l,
+            // XOR A.
+            0b1010_1111 => self.acc ^= self.acc,
             // CB (Prefix).
             0b1100_1011 => self.exec_prefixed_instruction(opcode, bus),
-            _ => {
-                // TODO think about making them static and move up.
-                // LD dd, nn.
-                if self.bit_match(0b0000_0001, 0b1100_1111, opcode) {
-                    let (vlow, vhigh) = self.read_low_high(bus);
-                    match opcode >> 4 & 0b11 {
-                        0b00 => { self.b = vhigh; self.c = vlow; }, // BC
-                        0b01 => { self.d = vhigh; self.e = vlow; }, // DE
-                        0b10 => { self.h = vhigh; self.l = vlow; }, // HL
-                        0b11 => { self.sp = (vhigh as u16) << 8 | (vlow as u16); }, // SP
-                        _ => unreachable!(),
-                    }
-
-                // XOR s.
-                } else if self.bit_match(0b1010_1000, 0b1111_1000, opcode) {
-                    match opcode & 0b111 {
-                        // TODO review if it's properly stored in the same acc reg.
-                        0b000 => { self.b ^= self.b; },
-                        0b001 => { self.c ^= self.c; },
-                        0b010 => { self.d ^= self.d; },
-                        0b011 => { self.e ^= self.e; },
-                        0b100 => { self.h ^= self.h; },
-                        0b101 => { self.l ^= self.l; },
-                        0b111 => { self.acc ^= self.acc; },
-                        reg @ _ => panic!("Xor reg {:#b} should be handled in the strict opcode match section", reg),
-                    }
-                } else {
-                    panic!("Unknown opcode {:#x} ({:#b})", opcode, opcode);
-                }
-            },
+            _ => panic!("Unknown opcode {:#x} ({:#b})", opcode, opcode),
         };
     }
 
