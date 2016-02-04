@@ -51,7 +51,7 @@ impl CPU {
             },
             // INC C.
             0b000_1100 => {
-                self.c = if self.c == 0xFFFF { 0 } else { self.c + 1 };
+                self.c = if self.c == 0xFF { 0 } else { self.c + 1 };
                 // TODO verify if this is a conditional set or always. Now it's conditional.
                 self.flag.z_zero |= self.c == 0;
                 self.flag.n_substract = false;
@@ -66,6 +66,11 @@ impl CPU {
                 self.e = vlow;
                 self.d = vhigh;
             },
+            // LD A,(DE).
+            0b0001_1010 => {
+                let addr = (self.d as u16) << 8 | (self.e as u16);
+                self.acc = bus.read_byte(addr as usize);
+            }
             // JR NZ,r8.
             0b0010_0000 => {
                 let addr = self.read_byte(bus);
@@ -101,6 +106,11 @@ impl CPU {
             },
             // LD A,d8.
             0b0011_1110 => self.acc = self.read_byte(bus),
+            // LD (HL),A.
+            0b0111_0111 => {
+                let addr = ((self.h as u16) << 8) | (self.l as u16);
+                bus.write_byte(addr as usize, self.acc);
+            },
             // XOR B.
             0b1010_1000 => self.b ^= self.b,
             // XOR C.
@@ -117,6 +127,11 @@ impl CPU {
             0b1010_1111 => self.acc ^= self.acc,
             // CB (Prefix).
             0b1100_1011 => self.exec_prefixed_instruction(opcode, bus),
+            // LDH (n),A.
+            0b1110_0000 => {
+                let addr = self.read_byte(bus);
+                bus.write_byte((0xFF00 + addr) as usize, self.acc);
+            },
             // LD (C),A.
             0b1110_0010 => {
                 // let offs = self.read_byte(bus);
