@@ -30,7 +30,7 @@ impl GameBoy {
 
         loop {
             self.cpu.next_instruction(&mut self.bus);
-            // println!("{:#?}", self.cpu);
+            println!("{:#?}", self.cpu);
         }
     }
 

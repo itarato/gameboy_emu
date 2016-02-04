@@ -40,6 +40,7 @@ impl CPU {
 
     pub fn next_instruction(&mut self, bus: &mut Bus)  {
         let opcode = self.read_opcode(bus);
+        println!("Read opcode {:#x} ({:#b}) at PC {:#x} ({})", opcode, opcode, self.pc - 1, self.pc - 1);
 
         match opcode {
             // LD (HL-),A.
@@ -70,6 +71,8 @@ impl CPU {
                 self.c = vlow;
                 self.b = vhigh;
             },
+            // LD C,d8.
+            0b0000_1110 => self.c = self.read_byte(bus),
             // LD DE,d16.
             0b0001_0001 => {
                 let (vlow, vhigh) = self.read_low_high(bus);
@@ -87,6 +90,8 @@ impl CPU {
                 let (vlow, vhigh) = self.read_low_high(bus);
                 self.sp = (vhigh as u16) << 8 | (vlow as u16);
             },
+            // LD A,d8.
+            0b0011_1110 => self.acc = self.read_byte(bus),
             // XOR B.
             0b1010_1000 => self.b ^= self.b,
             // XOR C.
@@ -103,7 +108,17 @@ impl CPU {
             0b1010_1111 => self.acc ^= self.acc,
             // CB (Prefix).
             0b1100_1011 => self.exec_prefixed_instruction(opcode, bus),
-            _ => panic!("Unknown opcode {:#x} ({:#b})", opcode, opcode),
+            // LD (C),A.
+            0b1110_0010 => {
+                // let offs = self.read_byte(bus);
+                // bus.write_byte((offs + self.c) as usize, self.acc);
+                // There is some contradiciton here.
+                // http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html mentions LD (C),A is a 2 byte op.
+                // However it doesn't refer to a loaded byte as well as http://gbdev.gg8.se/wiki/articles/Gameboy_Bootstrap_ROM
+                // says its a 1 byte op with fixed signing. We follow the latter now.
+                bus.write_byte((0xFF00 + (self.c as u16)) as usize, self.acc);
+            },
+            _ => panic!("Unknown opcode {:#x} ({:#b}) at PC {:#x} ({})", opcode, opcode, self.pc - 1, self.pc - 1),
         };
     }
 
