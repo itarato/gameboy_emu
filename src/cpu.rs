@@ -43,6 +43,47 @@ impl CPU {
         println!("Read opcode {:#x} ({:#b}) at PC {:#x} ({})", opcode, opcode, self.pc - 1, self.pc - 1);
 
         match opcode {
+            // LD BC,d16.
+            0b0000_0001 => {
+                let (vlow, vhigh) = self.read_low_high(bus);
+                self.c = vlow;
+                self.b = vhigh;
+            },
+            // INC C.
+            0b000_1100 => {
+                self.c = if self.c == 0xFFFF { 0 } else { self.c + 1 };
+                // TODO verify if this is a conditional set or always. Now it's conditional.
+                self.flag.z_zero |= self.c == 0;
+                self.flag.n_substract = false;
+                // TODO verify if this a definite set or only when bit 3 == 1
+                self.flag.h_half_carry = (self.c >> 3) & 1 == 1;
+            },
+            // LD C,d8.
+            0b0000_1110 => self.c = self.read_byte(bus),
+            // LD DE,d16.
+            0b0001_0001 => {
+                let (vlow, vhigh) = self.read_low_high(bus);
+                self.e = vlow;
+                self.d = vhigh;
+            },
+            // JR NZ,r8.
+            0b0010_0000 => {
+                let addr = self.read_byte(bus);
+                if !self.flag.z_zero {
+                    self.pc = ((self.pc as i16) + ((addr as i8) as i16)) as u16;
+                }
+            },
+            // LD HL,d16.
+            0b0010_0001 => {
+                let (vlow, vhigh) = self.read_low_high(bus);
+                self.l = vlow;
+                self.h = vhigh;
+            },
+            // LD SP,d16.
+            0b0011_0001 => {
+                let (vlow, vhigh) = self.read_low_high(bus);
+                self.sp = (vhigh as u16) << 8 | (vlow as u16);
+            },
             // LD (HL-),A.
             0b0011_0010 => {
                 let mut addr = ((self.h as u16) << 8) | (self.l as u16);
@@ -57,38 +98,6 @@ impl CPU {
                 // TODO make it a func or macro.
                 self.h = (addr >> 8) as u8;
                 self.l = (addr & 0xFF) as u8;
-            },
-            // JR NZ,r8.
-            0b0010_0000 => {
-                let addr = self.read_byte(bus);
-                if !self.flag.z_zero {
-                    self.pc = ((self.pc as i16) + ((addr as i8) as i16)) as u16;
-                }
-            },
-            // LD BC,d16.
-            0b0000_0001 => {
-                let (vlow, vhigh) = self.read_low_high(bus);
-                self.c = vlow;
-                self.b = vhigh;
-            },
-            // LD C,d8.
-            0b0000_1110 => self.c = self.read_byte(bus),
-            // LD DE,d16.
-            0b0001_0001 => {
-                let (vlow, vhigh) = self.read_low_high(bus);
-                self.e = vlow;
-                self.d = vhigh;
-            },
-            // LD HL,d16.
-            0b0010_0001 => {
-                let (vlow, vhigh) = self.read_low_high(bus);
-                self.l = vlow;
-                self.h = vhigh;
-            },
-            // LD SP,d16.
-            0b0011_0001 => {
-                let (vlow, vhigh) = self.read_low_high(bus);
-                self.sp = (vhigh as u16) << 8 | (vlow as u16);
             },
             // LD A,d8.
             0b0011_1110 => self.acc = self.read_byte(bus),
