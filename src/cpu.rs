@@ -22,7 +22,7 @@ macro_rules! dec_n {
             $_self.flag.z_zero = $_self.$reg == 0;
             $_self.flag.n_substract = true;
             // TODO verify if this a definite set or only when bit 3 == 1
-            $_self.flag.h_half_carry = $_self.$reg >> 3 & 1 == 1;
+            $_self.flag.h_half_carry = $_self.$reg >> 4 & 1 == 0;
         }
     )
 }
@@ -35,7 +35,7 @@ macro_rules! inc_n {
             $_self.flag.z_zero = $_self.$reg == 0;
             $_self.flag.n_substract = false;
             // TODO verify if this a definite set or only when bit 3 == 1
-            $_self.flag.h_half_carry = $_self.$reg >> 3 & 1 == 1;
+            $_self.flag.h_half_carry = $_self.$reg >> 3 & 1 == 0;
         }
     )
 }
@@ -56,6 +56,18 @@ macro_rules! dec_dd {
             let (hi, lo) = dec_dd($reg_hi, $reg_lo);
             $reg_hi = hi;
             $reg_lo = lo;
+        }
+    )
+}
+
+macro_rules! cp {
+    ($_self:expr, $cmp:expr) => (
+        {
+            let res = (($_self.acc as i8) - ($cmp as i8)) as u8;
+            $_self.flag.z_zero = $_self.acc == $cmp;
+            $_self.flag.n_substract = true;
+            $_self.flag.h_half_carry = res >> 4 & 1 == 0;
+            $_self.flag.c_carry = $_self.acc < $cmp;
         }
     )
 }
@@ -129,13 +141,40 @@ impl CPU {
         match opcode {
             // CALL a16.
             0xCD => {
+                let (vlow, vhigh) = self.read_low_high(bus);
+                // Read address after data load so PC is set to next instruction.
                 let (addr_hi, addr_lo) = u16_to_hi_lo(self.pc);
                 // TODO review, http://www.devrs.com/gb/files/instr.txt does not mention SP adjustment here
                 self.stack_push(addr_hi, bus);
                 self.stack_push(addr_lo, bus);
 
-                let (vlow, vhigh) = self.read_low_high(bus);
                 self.pc = hi_lo_to_u16(vhigh, vlow);
+            },
+
+            // CP B.
+            0xB8 => cp!(self, self.b),
+            // CP C.
+            0xB9 => cp!(self, self.c),
+            // CP D.
+            0xBA => cp!(self, self.d),
+            // CP E.
+            0xBB => cp!(self, self.e),
+            // CP H.
+            0xBC => cp!(self, self.h),
+            // CP L.
+            0xBD => cp!(self, self.l),
+            // CP A.
+            0xBF => cp!(self, self.acc),
+
+            // CP d8.
+            0xFE => {
+                let cmp = self.read_byte(bus);
+                cp!(self, cmp);
+            },
+            // CP (HL).
+            0xBE => {
+                let cmp = bus.read_byte(hi_lo_to_u16(self.h, self.l) as usize);
+                cp!(self, cmp);
             },
 
             // DEC B.
@@ -472,6 +511,7 @@ impl CPU {
     }
 
     fn stack_push(&mut self, byte: u8, bus: &mut Bus) {
+        // println!("Write to STACK[{:#x}] == {:#x}", self.sp, byte);
         bus.write_byte(self.sp as usize, byte);
         self.sp -= 1;
 
@@ -486,6 +526,7 @@ impl CPU {
             panic!("Stack pointer reached top: {:#x}", self.sp);
         }
 
+        // println!("Read from STACK[{:#x}]", self.sp);
         // TODO too much "as usize", try to apply the From or Into trait
         bus.read_byte(self.sp as usize)
     }
