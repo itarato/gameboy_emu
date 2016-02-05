@@ -152,9 +152,31 @@ impl CPU {
             0x2D => dec_n!(self, l),
             // DEC A.
             0x3D => dec_n!(self, acc),
+            // DEC BC.
+            0x0B => dec_dd!(self.b, self.c),
+            // DEC DE.
+            0x1B => dec_dd!(self.d, self.e),
+            // DEC HL.
+            0x2B => dec_dd!(self.h, self.l),
 
+            // INC B.
+            0x04 => inc_n!(self, b),
+            // INC D.
+            0x14 => inc_n!(self, d),
+            // INC H.
+            0x24 => inc_n!(self, h),
             // INC C.
             0x0C => inc_n!(self, c),
+            // INC E.
+            0x1C => inc_n!(self, e),
+            // INC L.
+            0x2C => inc_n!(self, l),
+            // INC A.
+            0x3C => inc_n!(self, acc),
+            // INC BC.
+            0x03 => inc_dd!(self.b, self.c),
+            // INC DE.
+            0x13 => inc_dd!(self.d, self.e),
             // INC HL.
             0x23 => inc_dd!(self.h, self.l),
 
