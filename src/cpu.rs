@@ -14,6 +14,52 @@ macro_rules! rl {
     )
 }
 
+macro_rules! dec_n {
+    ($_self:expr, $reg:ident) => (
+        {
+            $_self.$reg = if $_self.$reg == 0 { 0xFF } else { $_self.$reg - 1 };
+            // TODO verify if this is a conditional set or always. Now it's always.
+            $_self.flag.z_zero = $_self.$reg == 0;
+            $_self.flag.n_substract = true;
+            // TODO verify if this a definite set or only when bit 3 == 1
+            $_self.flag.h_half_carry = $_self.$reg >> 3 & 1 == 1;
+        }
+    )
+}
+
+macro_rules! inc_n {
+    ($_self:expr, $reg:ident) => (
+        {
+            $_self.$reg = if $_self.$reg == 0xFF { 0 } else { $_self.$reg + 1 };
+            // TODO verify if this is a conditional set or always. Now it's always.
+            $_self.flag.z_zero = $_self.$reg == 0;
+            $_self.flag.n_substract = false;
+            // TODO verify if this a definite set or only when bit 3 == 1
+            $_self.flag.h_half_carry = $_self.$reg >> 3 & 1 == 1;
+        }
+    )
+}
+
+macro_rules! inc_dd {
+    ($reg_hi:expr, $reg_lo:expr) => (
+        {
+            let (hi, lo) = inc_dd($reg_hi, $reg_lo);
+            $reg_hi = hi;
+            $reg_lo = lo;
+        }
+    )
+}
+
+macro_rules! dec_dd {
+    ($reg_hi:expr, $reg_lo:expr) => (
+        {
+            let (hi, lo) = dec_dd($reg_hi, $reg_lo);
+            $reg_hi = hi;
+            $reg_lo = lo;
+        }
+    )
+}
+
 const STACK_TOP: u16 = 0xFFFE;
 // TOOD verify it's true
 const STACK_BOTTOM: u16 = 0xFF80;
@@ -29,6 +75,12 @@ fn hi_lo_to_u16(hi:u8, lo:u8) -> u16 {
 fn inc_dd(hi: u8, lo: u8) -> (u8, u8) {
     let mut val: u16 = hi_lo_to_u16(hi, lo);
     val += 1;
+    u16_to_hi_lo(val)
+}
+
+fn dec_dd(hi: u8, lo: u8) -> (u8, u8) {
+    let mut val: u16 = hi_lo_to_u16(hi, lo);
+    val -= 1;
     u16_to_hi_lo(val)
 }
 
@@ -87,28 +139,24 @@ impl CPU {
             },
 
             // DEC B.
-            0x05 => {
-                self.b = if self.b == 0 { 0xFF } else { self.b - 1 };
-                self.flag.z_zero = self.b == 0;
-                self.flag.n_substract = true;
-                self.flag.h_half_carry = self.b >> 3 & 1 == 0;
-            },
+            0x05 => dec_n!(self, b),
+            // DEC D.
+            0x15 => dec_n!(self, d),
+            // DEC H.
+            0x25 => dec_n!(self, h),
+            // DEC C.
+            0x0D => dec_n!(self, c),
+            // DEC E.
+            0x1D => dec_n!(self, e),
+            // DEC L.
+            0x2D => dec_n!(self, l),
+            // DEC A.
+            0x3D => dec_n!(self, acc),
 
             // INC C.
-            0x0C => {
-                self.c = if self.c == 0xFF { 0 } else { self.c + 1 };
-                // TODO verify if this is a conditional set or always. Now it's always.
-                self.flag.z_zero = self.c == 0;
-                self.flag.n_substract = false;
-                // TODO verify if this a definite set or only when bit 3 == 1
-                self.flag.h_half_carry = self.c >> 3 & 1 == 1;
-            },
+            0x0C => inc_n!(self, c),
             // INC HL.
-            0x23 => {
-                let (hi, lo) = inc_dd(self.h, self.l);
-                self.h = hi;
-                self.l = lo;
-            },
+            0x23 => inc_dd!(self.h, self.l),
 
             // JR NZ,r8.
             0x20 => {
