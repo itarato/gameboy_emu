@@ -413,6 +413,12 @@ impl CPU {
                 self.stack_push(c, bus);
             },
 
+            // RET.
+            0xC9 => {
+                let (vlow, vhigh) = (self.stack_pop(bus), self.stack_pop(bus));
+                self.pc = hi_lo_to_u16(vhigh, vlow);
+            },
+
             // RLA.
             0x17 => rl!(self, acc),
 
