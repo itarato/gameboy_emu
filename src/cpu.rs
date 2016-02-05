@@ -1,5 +1,17 @@
 use bus::{Bus};
 
+const STACK_TOP: u16 = 0xFFFE;
+// TOOD verify it's true
+const STACK_BOTTOM: u16 = 0xFF80;
+
+fn u16_to_hi_lo(dd: u16) -> (u8, u8) {
+    ((dd >> 8) as u8, (dd & 0xFF) as u8)
+}
+
+fn hi_lo_to_u16(hi:u8, lo:u8) -> u16 {
+    (hi as u16) << 8 | lo as u16
+}
+
 #[derive(Default, Debug)]
 struct Flags {
     z_zero: bool,
@@ -127,10 +139,19 @@ impl CPU {
             0b1010_1111 => self.acc ^= self.acc,
             // CB (Prefix).
             0b1100_1011 => self.exec_prefixed_instruction(opcode, bus),
+            // CALL n.
+            0b1100_1101 => {
+                let (addr_hi, addr_lo) = u16_to_hi_lo(self.pc);
+                self.stack_push(addr_hi, bus);
+                self.stack_push(addr_lo, bus);
+
+                let (vlow, vhigh) = self.read_low_high(bus);
+                self.pc = hi_lo_to_u16(vhigh, vlow);
+            },
             // LDH (n),A.
             0b1110_0000 => {
                 let addr = self.read_byte(bus);
-                bus.write_byte((0xFF00 + addr) as usize, self.acc);
+                bus.write_byte((0xFF00 + (addr as u16)) as usize, self.acc);
             },
             // LD (C),A.
             0b1110_0010 => {
@@ -159,14 +180,6 @@ impl CPU {
         }
     }
 
-    /// Compare fixed and dynamic bits.
-    /// Example requirement:    0b00??0001
-    /// Example pattern:        0b00000001
-    /// Example mask:           0b11001111
-    fn bit_match(&self, pattern: u8, mask: u8, opcode: u8) -> bool {
-        (opcode & mask) ^ pattern == 0
-    }
-
     fn read_opcode(&mut self, bus: &Bus) -> u8 {
         self.read_byte(bus)
     }
@@ -178,6 +191,25 @@ impl CPU {
 
     fn read_low_high(&mut self, bus: &Bus) -> (u8, u8) {
         (self.read_byte(bus), self.read_byte(bus))
+    }
+
+    fn stack_push(&mut self, byte: u8, bus: &mut Bus) {
+        bus.write_byte(self.sp as usize, byte);
+        self.sp -= 1;
+
+        if self.sp < STACK_BOTTOM {
+            panic!("Stack pointer reached bottom: {:#x}.", self.sp);
+        }
+    }
+
+    fn stack_pop(&mut self, bus: &Bus) -> u8 {
+        self.sp += 1;
+        if self.sp > STACK_TOP {
+            panic!("Stack pointer reached top: {:#x}", self.sp);
+        }
+
+        // TODO too much "as usize", try to apply the From or Into trait
+        bus.read_byte(self.sp as usize)
     }
 
 }
