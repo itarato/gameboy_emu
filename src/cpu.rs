@@ -127,7 +127,7 @@ impl CPU {
         println!("Read opcode {:#x} ({:#b}) at PC {:#x} ({})", opcode, opcode, self.pc - 1, self.pc - 1);
 
         match opcode {
-            // CALL n.
+            // CALL a16.
             0xCD => {
                 let (addr_hi, addr_lo) = u16_to_hi_lo(self.pc);
                 // TODO review, http://www.devrs.com/gb/files/instr.txt does not mention SP adjustment here
@@ -204,7 +204,7 @@ impl CPU {
             },
             // LD A,(DE).
             0x1A => {
-                let addr = (self.d as u16) << 8 | (self.e as u16);
+                let addr = hi_lo_to_u16(self.d, self.e);
                 self.acc = bus.read_byte(addr as usize);
             }
             // LD HL,d16.
@@ -216,7 +216,7 @@ impl CPU {
             // LD SP,d16.
             0x31 => {
                 let (vlow, vhigh) = self.read_low_high(bus);
-                self.sp = (vhigh as u16) << 8 | (vlow as u16);
+                self.sp = hi_lo_to_u16(vhigh, vlow);
             },
             // LD (HL-),A.
             0x32 => {
@@ -244,13 +244,141 @@ impl CPU {
             },
             // LD A,d8.
             0x3E => self.acc = self.read_byte(bus),
+
+            // LD B,B.
+            0x40 => self.b = self.b,
+            // LD B,C.
+            0x41 => self.b = self.c,
+            // LD B,D.
+            0x42 => self.b = self.d,
+            // LD B,E.
+            0x43 => self.b = self.e,
+            // LD B,H.
+            0x44 => self.b = self.h,
+            // LD B,L.
+            0x45 => self.b = self.l,
+            // LD B,(HL).
+            0x46 => self.b = bus.read_byte(hi_lo_to_u16(self.h, self.l) as usize),
+            // LD B,A.
+            0x47 => self.b = self.acc,
+
+            // LD C,B.
+            0x48 => self.c = self.b,
+            // LD C,C.
+            0x49 => self.c = self.c,
+            // LD C,D.
+            0x4A => self.c = self.d,
+            // LD C,E.
+            0x4B => self.c = self.e,
+            // LD C,H.
+            0x4C => self.c = self.h,
+            // LD C,L.
+            0x4D => self.c = self.l,
+            // LD C,(HL).
+            0x4E => self.c = bus.read_byte(hi_lo_to_u16(self.h, self.l) as usize),
             // LD C,A.
             0x4F => self.c = self.acc,
+
+            // LD D,B.
+            0x50 => self.d = self.b,
+            // LD D,C.
+            0x51 => self.d = self.c,
+            // LD D,D.
+            0x52 => self.d = self.d,
+            // LD D,E.
+            0x53 => self.d = self.e,
+            // LD D,H.
+            0x54 => self.d = self.h,
+            // LD D,L.
+            0x55 => self.d = self.l,
+            // LD D,(HL).
+            0x56 => self.d = bus.read_byte(hi_lo_to_u16(self.h, self.l) as usize),
+            // LD D,A.
+            0x57 => self.d = self.acc,
+
+            // LD E,B.
+            0x58 => self.e = self.b,
+            // LD E,C.
+            0x59 => self.e = self.c,
+            // LD E,D.
+            0x5A => self.e = self.d,
+            // LD E,E.
+            0x5B => self.e = self.e,
+            // LD E,H.
+            0x5C => self.e = self.h,
+            // LD E,L.
+            0x5D => self.e = self.l,
+            // LD E,(HL).
+            0x5E => self.e = bus.read_byte(hi_lo_to_u16(self.h, self.l) as usize),
+            // LD E,A.
+            0x5F => self.e = self.acc,
+
+            // LD H,B.
+            0x60 => self.h = self.b,
+            // LD H,C.
+            0x61 => self.h = self.c,
+            // LD H,D.
+            0x62 => self.h = self.d,
+            // LD H,E.
+            0x63 => self.h = self.e,
+            // LD H,H.
+            0x64 => self.h = self.h,
+            // LD H,L.
+            0x65 => self.h = self.l,
+            // LD H,(HL).
+            0x66 => self.h = bus.read_byte(hi_lo_to_u16(self.h, self.l) as usize),
+            // LD H,A.
+            0x67 => self.h = self.acc,
+
+            // LD L,B.
+            0x68 => self.l = self.b,
+            // LD L,C.
+            0x69 => self.l = self.c,
+            // LD L,D.
+            0x6A => self.l = self.d,
+            // LD L,E.
+            0x6B => self.l = self.e,
+            // LD L,H.
+            0x6C => self.l = self.h,
+            // LD L,L.
+            0x6D => self.l = self.l,
+            // LD L,(HL).
+            0x6E => self.l = bus.read_byte(hi_lo_to_u16(self.h, self.l) as usize),
+            // LD L,A.
+            0x6F => self.l = self.acc,
+
+            // LD (HL),B.
+            0x70 => bus.write_byte(hi_lo_to_u16(self.h, self.l) as usize, self.b),
+            // LD (HL),C.
+            0x71 => bus.write_byte(hi_lo_to_u16(self.h, self.l) as usize, self.c),
+            // LD (HL),D.
+            0x72 => bus.write_byte(hi_lo_to_u16(self.h, self.l) as usize, self.d),
+            // LD (HL),E.
+            0x73 => bus.write_byte(hi_lo_to_u16(self.h, self.l) as usize, self.e),
+            // LD (HL),H.
+            0x74 => bus.write_byte(hi_lo_to_u16(self.h, self.l) as usize, self.h),
+            // LD (HL),L.
+            0x75 => bus.write_byte(hi_lo_to_u16(self.h, self.l) as usize, self.l),
             // LD (HL),A.
-            0x77 => {
-                let addr = ((self.h as u16) << 8) | (self.l as u16);
-                bus.write_byte(addr as usize, self.acc);
-            },
+            0x77 => bus.write_byte(hi_lo_to_u16(self.h, self.l) as usize, self.acc),
+
+            // LD A,B.
+            0x78 => self.acc = self.b,
+            // LD A,C.
+            0x79 => self.acc = self.c,
+            // LD A,D.
+            0x7A => self.acc = self.d,
+            // LD A,E.
+            0x7B => self.acc = self.e,
+            // LD A,H.
+            0x7C => self.acc = self.h,
+            // LD A,L.
+            0x7D => self.acc = self.l,
+            // LD A,(HL).
+            0x7E => self.acc = bus.read_byte(hi_lo_to_u16(self.h, self.l) as usize),
+            // LD A,A.
+            0x7F => self.acc = self.acc,
+
             // LDH (n),A.
             0xE0 => {
                 let addr = self.read_byte(bus);
