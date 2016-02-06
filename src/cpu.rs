@@ -228,6 +228,14 @@ impl CPU {
             0x1B => dec_dd!(self.d, self.e),
             // DEC HL.
             0x2B => dec_dd!(self.h, self.l),
+            // DEC (HL).
+            0x35 => {
+                let addr = hi_lo_to_u16(self.h, self.l) as usize;
+                let val = bus.read_byte(addr);
+                bus.write_byte(addr, val - 1);
+            },
+            // DEC SP.
+            0x3B => self.sp -= 1,
 
             // DI.
             0xF3 => self.interrupts_enabled = false,
@@ -258,6 +266,14 @@ impl CPU {
             0x13 => inc_dd!(self.d, self.e),
             // INC HL.
             0x23 => inc_dd!(self.h, self.l),
+            // INC SP.
+            0x33 => self.sp += 1,
+            // INC (HL).
+            0x34 => {
+                let addr = hi_lo_to_u16(self.h, self.l) as usize;
+                let val = bus.read_byte(addr);
+                bus.write_byte(addr, val + 1);
+            },
 
             // JR NZ,r8.
             0x20 => jr!(self, bus, !self.flag.z_zero),
