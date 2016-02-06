@@ -90,6 +90,17 @@ macro_rules! call {
     )
 }
 
+macro_rules! jr {
+    ($_self:expr, $bus:expr, $cond:expr) => (
+        {
+            let addr = $_self.read_byte($bus);
+            if !$_self.flag.z_zero {
+                $_self.pc = (($_self.pc as i16) + ((addr as i8) as i16)) as u16;
+            }
+        }
+    )
+}
+
 const STACK_TOP: u16 = 0xFFFE;
 // TOOD verify it's true
 const STACK_BOTTOM: u16 = 0xFF80;
@@ -249,12 +260,15 @@ impl CPU {
             0x23 => inc_dd!(self.h, self.l),
 
             // JR NZ,r8.
-            0x20 => {
-                let addr = self.read_byte(bus);
-                if !self.flag.z_zero {
-                    self.pc = ((self.pc as i16) + ((addr as i8) as i16)) as u16;
-                }
-            },
+            0x20 => jr!(self, bus, !self.flag.z_zero),
+            // JR NC,r8.
+            0x30 => jr!(self, bus, !self.flag.c_carry),
+            // JR r8.
+            0x18 => jr!(self, bus, true),
+            // JR Z,r8.
+            0x28 => jr!(self, bus, self.flag.z_zero),
+            // JR C,r8.
+            0x38 => jr!(self, bus, self.flag.c_carry),
 
             // LD BC,d16.
             0x01 => {
@@ -279,12 +293,22 @@ impl CPU {
                 let (vlow, vhigh) = self.read_low_high(bus);
                 self.sp = hi_lo_to_u16(vhigh, vlow);
             },
-            // LD C,d8.
-            0x0E => self.c = self.read_byte(bus),
-            // LD A,(DE).
-            0x1A => {
-                let addr = hi_lo_to_u16(self.d, self.e);
-                self.acc = bus.read_byte(addr as usize);
+
+            // LD (BC),A.
+            0x02 => bus.write_byte(hi_lo_to_u16(self.b, self.c) as usize, self.acc),
+            // LD (DE),A.
+            0x12 => bus.write_byte(hi_lo_to_u16(self.d, self.e) as usize, self.acc),
+            // LD (HL+),A.
+            0x22 => {
+                let mut addr = hi_lo_to_u16(self.h, self.l);
+                bus.write_byte(addr as usize, self.acc);
+
+                assert!(addr < 0xFFFF, "Address reg HL is max (0xFFFF), cannot be incremented");
+                addr += 1;
+
+                // TODO make it a func or macro.
+                self.h = (addr >> 8) as u8;
+                self.l = (addr & 0xFF) as u8;
             },
             // LD (HL-),A.
             0x32 => {
@@ -298,17 +322,13 @@ impl CPU {
                 self.h = (addr >> 8) as u8;
                 self.l = (addr & 0xFF) as u8;
             },
-            // LD (HL+),A.
-            0x22 => {
-                let mut addr = hi_lo_to_u16(self.h, self.l);
-                bus.write_byte(addr as usize, self.acc);
 
-                assert!(addr < 0xFFFF, "Address reg HL is max (0xFFFF), cannot be incremented");
-                addr += 1;
-
-                // TODO make it a func or macro.
-                self.h = (addr >> 8) as u8;
-                self.l = (addr & 0xFF) as u8;
+            // LD C,d8.
+            0x0E => self.c = self.read_byte(bus),
+            // LD A,(DE).
+            0x1A => {
+                let addr = hi_lo_to_u16(self.d, self.e);
+                self.acc = bus.read_byte(addr as usize);
             },
             // LD A,d8.
             0x3E => self.acc = self.read_byte(bus),
