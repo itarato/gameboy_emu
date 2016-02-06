@@ -72,6 +72,24 @@ macro_rules! cp {
     )
 }
 
+macro_rules! call {
+    ($_self:expr, $bus:expr, $cond:expr) => (
+        {
+            let (vlow, vhigh) = $_self.read_low_high($bus);
+
+            if $cond {
+                // Read address after data load so PC is set to next instruction.
+                let (addr_hi, addr_lo) = u16_to_hi_lo($_self.pc);
+                // TODO review, http://www.devrs.com/gb/files/instr.txt does not mention SP adjustment here
+                $_self.stack_push(addr_hi, $bus);
+                $_self.stack_push(addr_lo, $bus);
+
+                $_self.pc = hi_lo_to_u16(vhigh, vlow);
+            }
+        }
+    )
+}
+
 const STACK_TOP: u16 = 0xFFFE;
 // TOOD verify it's true
 const STACK_BOTTOM: u16 = 0xFF80;
@@ -122,6 +140,8 @@ pub struct CPU {
     // Special purpose registers.
     sp: u16,
     pc: u16,
+
+    interrupts_enabled: bool,
 }
 
 impl CPU {
@@ -132,6 +152,7 @@ impl CPU {
     pub fn reset(&mut self) {
         // Point to first instruction.
         self.pc = 0x0000;
+        self.interrupts_enabled = true;
     }
 
     pub fn next_instruction(&mut self, bus: &mut Bus)  {
@@ -139,17 +160,16 @@ impl CPU {
         println!("Read opcode {:#x} ({:#b}) at PC {:#x} ({})", opcode, opcode, self.pc - 1, self.pc - 1);
 
         match opcode {
+            // CALL NZ,a16.
+            0xC4 => call!(self, bus, !self.flag.z_zero),
+            // CALL NC,a16.
+            0xD4 => call!(self, bus, !self.flag.c_carry),
+            // CALL Z,a16.
+            0xCC => call!(self, bus, self.flag.z_zero),
+            // CALL C,a16.
+            0xDC => call!(self, bus, self.flag.c_carry),
             // CALL a16.
-            0xCD => {
-                let (vlow, vhigh) = self.read_low_high(bus);
-                // Read address after data load so PC is set to next instruction.
-                let (addr_hi, addr_lo) = u16_to_hi_lo(self.pc);
-                // TODO review, http://www.devrs.com/gb/files/instr.txt does not mention SP adjustment here
-                self.stack_push(addr_hi, bus);
-                self.stack_push(addr_lo, bus);
-
-                self.pc = hi_lo_to_u16(vhigh, vlow);
-            },
+            0xCD => call!(self, bus, true),
 
             // CP B.
             0xB8 => cp!(self, self.b),
@@ -198,6 +218,15 @@ impl CPU {
             // DEC HL.
             0x2B => dec_dd!(self.h, self.l),
 
+            // DI.
+            0xF3 => self.interrupts_enabled = false,
+
+            // EI.
+            0xFB => self.interrupts_enabled = true,
+
+            // HALT.
+            0x76 => panic!("HALT."),
+
             // INC B.
             0x04 => inc_n!(self, b),
             // INC D.
@@ -233,19 +262,12 @@ impl CPU {
                 self.c = vlow;
                 self.b = vhigh;
             },
-            // LD C,d8.
-            0x0E => self.c = self.read_byte(bus),
             // LD DE,d16.
             0x11 => {
                 let (vlow, vhigh) = self.read_low_high(bus);
                 self.e = vlow;
                 self.d = vhigh;
             },
-            // LD A,(DE).
-            0x1A => {
-                let addr = hi_lo_to_u16(self.d, self.e);
-                self.acc = bus.read_byte(addr as usize);
-            }
             // LD HL,d16.
             0x21 => {
                 let (vlow, vhigh) = self.read_low_high(bus);
@@ -256,6 +278,13 @@ impl CPU {
             0x31 => {
                 let (vlow, vhigh) = self.read_low_high(bus);
                 self.sp = hi_lo_to_u16(vhigh, vlow);
+            },
+            // LD C,d8.
+            0x0E => self.c = self.read_byte(bus),
+            // LD A,(DE).
+            0x1A => {
+                let addr = hi_lo_to_u16(self.d, self.e);
+                self.acc = bus.read_byte(addr as usize);
             },
             // LD (HL-),A.
             0x32 => {
@@ -436,6 +465,9 @@ impl CPU {
             // LD B,d8.
             0x06 => self.b = self.read_byte(bus),
 
+            // NOP.
+            0x00 => { },
+
             // POP BC.
             0xC1 => {
                 self.c = self.stack_pop(bus);
@@ -460,6 +492,13 @@ impl CPU {
 
             // RLA.
             0x17 => rl!(self, acc),
+
+            // STOP.
+            /* Halt until button pressed. Might be a better way to simulate. */
+            0x10 => {
+                let _ = self.read_byte(bus);
+                panic!("STOP instruction called.")
+            },
 
             // XOR B.
             0xA8 => self.b ^= self.b,
