@@ -500,6 +500,15 @@ impl CPU {
             },
             // LD B,d8.
             0x06 => self.b = self.read_byte(bus),
+            // LD D,d8.
+            0x16 => self.d = self.read_byte(bus),
+            // LD H,d8.
+            0x26 => self.h = self.read_byte(bus),
+            // LD (HL),d8.
+            0x36 => {
+                let val = self.read_byte(bus);
+                bus.write_byte(hi_lo_to_u16(self.h, self.l) as usize, val)
+            },
 
             // NOP.
             0x00 => { },
@@ -526,6 +535,14 @@ impl CPU {
                 self.pc = hi_lo_to_u16(vhigh, vlow);
             },
 
+            // RLCA.
+            0x07 => {
+                self.flag.c_carry = self.acc >> 7 == 1;
+                self.acc = self.acc << 1 | self.acc >> 7;
+                self.flag.z_zero = self.acc == 0;
+                self.flag.n_substract = false;
+                self.flag.h_half_carry = false;
+            },
             // RLA.
             0x17 => rl!(self, acc),
 
