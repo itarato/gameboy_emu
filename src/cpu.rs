@@ -509,6 +509,12 @@ impl CPU {
                 let val = self.read_byte(bus);
                 bus.write_byte(hi_lo_to_u16(self.h, self.l) as usize, val)
             },
+            // LD (a16),A.
+            0xEA => {
+                let (lo, hi) = self.read_low_high(bus);
+                let addr = hi_lo_to_u16(hi, lo);
+                bus.write_byte(addr as usize);
+            },
 
             // NOP.
             0x00 => { },
