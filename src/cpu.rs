@@ -238,9 +238,11 @@ impl CPU {
             0x3B => self.sp -= 1,
 
             // DI.
+            // TODO check if it's a dedicated register or 0xFFFF (interrupt enable register).
             0xF3 => self.interrupts_enabled = false,
 
             // EI.
+            // TODO check if it's a dedicated register or 0xFFFF (interrupt enable register).
             0xFB => self.interrupts_enabled = true,
 
             // HALT.
@@ -339,15 +341,55 @@ impl CPU {
                 self.l = (addr & 0xFF) as u8;
             },
 
+
+            // LD B,d8.
+            0x06 => self.b = self.read_byte(bus),
+            // LD D,d8.
+            0x16 => self.d = self.read_byte(bus),
+            // LD H,d8.
+            0x26 => self.h = self.read_byte(bus),
+            // LD (HL),d8.
+            0x36 => {
+                let val = self.read_byte(bus);
+                bus.write_byte(hi_lo_to_u16(self.h, self.l) as usize, val)
+            },
             // LD C,d8.
             0x0E => self.c = self.read_byte(bus),
-            // LD A,(DE).
-            0x1A => {
-                let addr = hi_lo_to_u16(self.d, self.e);
-                self.acc = bus.read_byte(addr as usize);
-            },
+            // LD E,d8.
+            0x1E => self.e = self.read_byte(bus),
+            // LD L,d8.
+            0x2E => self.l = self.read_byte(bus),
             // LD A,d8.
             0x3E => self.acc = self.read_byte(bus),
+
+            // LD A,(BC).
+            0x0A => self.acc = bus.read_byte(hi_lo_to_u16(self.b, self.c) as usize),
+            // LD A,(DE).
+            0x1A => self.acc = bus.read_byte(hi_lo_to_u16(self.d, self.e) as usize),
+            // LD A,(HL+).
+            0x2A => {
+                let mut addr = hi_lo_to_u16(self.h, self.l);
+                self.acc = bus.read_byte(addr as usize);
+
+                assert!(addr < 0xFFFF, "Address reg HL is max (0xFFFF), cannot be incremented");
+                addr += 1;
+
+                // TODO make it a func or macro.
+                self.h = (addr >> 8) as u8;
+                self.l = (addr & 0xFF) as u8;
+            },
+            // LD A,(HL-).
+            0x3A => {
+                let mut addr = hi_lo_to_u16(self.h, self.l);
+                self.acc = bus.read_byte(addr as usize);
+
+                assert!(addr > 0, "Address reg HL is zero, cannot be decremented");
+                addr -= 1;
+
+                // TODO make it a func or macro.
+                self.h = (addr >> 8) as u8;
+                self.l = (addr & 0xFF) as u8;
+            },
 
             // LD B,B.
             0x40 => self.b = self.b,
@@ -498,22 +540,16 @@ impl CPU {
                 // says its a 1 byte op with fixed signing. We follow the latter now.
                 bus.write_byte((0xFF00 + (self.c as u16)) as usize, self.acc);
             },
-            // LD B,d8.
-            0x06 => self.b = self.read_byte(bus),
-            // LD D,d8.
-            0x16 => self.d = self.read_byte(bus),
-            // LD H,d8.
-            0x26 => self.h = self.read_byte(bus),
-            // LD (HL),d8.
-            0x36 => {
-                let val = self.read_byte(bus);
-                bus.write_byte(hi_lo_to_u16(self.h, self.l) as usize, val)
-            },
             // LD (a16),A.
             0xEA => {
                 let (lo, hi) = self.read_low_high(bus);
                 let addr = hi_lo_to_u16(hi, lo);
-                bus.write_byte(addr as usize);
+                bus.write_byte(addr as usize, self.acc);
+            },
+            // LDH A,(a8).
+            0xF0 => {
+                let offs = self.read_byte(bus);
+                self.acc = bus.read_byte((0xFF00 | (offs as u16)) as usize);
             },
 
             // NOP.
