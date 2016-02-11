@@ -675,6 +675,9 @@ impl CPU {
             _ => panic!("Unknown opcode {:#x} ({:#b}) at PC {:#x} ({})", opcode, opcode, self.pc - 1, self.pc - 1),
         };
 
+        self.inc_cycle(DURATION_MAINS[opcode as usize] as u64);
+        // TODO handle higher duration time for the selected operations.
+
         self.handle_timing();
     }
 
@@ -1236,7 +1239,9 @@ impl CPU {
             // 0xFF => { },
 
             _ => panic!("Unknown perfixed [{:#x} ({:#b})] opcode {:#x} ({:#b})", opcode, opcode, real_opcode, real_opcode),
-        }
+        };
+
+        self.inc_cycle(DURATION_PREFIXED[real_opcode as usize] as u64);
     }
 
     fn read_opcode(&mut self, bus: &Bus) -> u8 {
