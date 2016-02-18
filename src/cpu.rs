@@ -108,6 +108,10 @@ const STACK_BOTTOM: u16 = 0xFF80;
 // Address of Intterrupt flag.
 const IF_ADDR: u16 = 0xFF0F;
 
+// Memory mapping.
+const ROM_BANK_ADDR_START: u16 = 0x0000;
+const ROM_BANK_ADDR_END: u16 = 0x3FFF;
+
 const DURATION_MAINS: [u8; 256] = [
     4, 12,  8,  8,  4,  4,  8,  4, 20,  8,  8,  8,  4,  4,  8,  4,
     4, 12,  8,  8,  4,  4,  8,  4, 12,  8,  8,  8,  4,  4,  8,  4,
@@ -682,6 +686,10 @@ impl CPU {
     }
 
     pub fn check_interrupt(&self, bus: &mut Bus) {
+        if !self.interrupts_enabled {
+            return;
+        }
+
         let int_byte = bus.read_byte(IF_ADDR as usize);
 
         // Bit 0: V-Blank Interrupt Request (INT 40h)  (1=Request)
@@ -1249,8 +1257,16 @@ impl CPU {
     }
 
     fn read_byte(&mut self, bus: &Bus) -> u8 {
+        let addr = self.pc as usize;
+
         self.pc += 1;
-        bus.read_byte((self.pc - 1) as usize)
+        // PC is virtually mapped to the ROM bank memory section.
+        if self.pc > ROM_BANK_ADDR_END {
+            println!("PC overflow to {:#x}", self.pc);
+            self.pc -= ROM_BANK_ADDR_END - ROM_BANK_ADDR_START + 1;
+        }
+
+        bus.read_byte(addr)
     }
 
     fn read_low_high(&mut self, bus: &Bus) -> (u8, u8) {
