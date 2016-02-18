@@ -693,7 +693,7 @@ impl CPU {
         let int_byte = bus.read_byte(IF_ADDR as usize);
 
         // Bit 0: V-Blank Interrupt Request (INT 40h)  (1=Request)
-        if int_byte >> 1 == 1 {
+        if int_byte & 1 == 1 {
             panic!("Interrupt needs to be handled: V-Blank Interrupt Request");
         }
 
