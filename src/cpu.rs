@@ -79,10 +79,9 @@ macro_rules! call {
 
             if $cond {
                 // Read address after data load so PC is set to next instruction.
-                let (addr_hi, addr_lo) = u16_to_hi_lo($_self.pc);
                 // TODO review, http://www.devrs.com/gb/files/instr.txt does not mention SP adjustment here
-                $_self.stack_push(addr_hi, $bus);
-                $_self.stack_push(addr_lo, $bus);
+                let pc = $_self.pc;
+                $_self.stack_push_d16(pc, $bus);
 
                 $_self.pc = hi_lo_to_u16(vhigh, vlow);
             }
@@ -97,6 +96,18 @@ macro_rules! jr {
             if !$_self.flag.z_zero {
                 $_self.pc = (($_self.pc as i16) + ((addr as i8) as i16)) as u16;
             }
+        }
+    )
+}
+
+macro_rules! interrupt {
+    ($_self:expr, $bus:expr, $int_addr:expr) => (
+        {
+            let pc = $_self.pc;
+            $_self.stack_push_d16(pc, $bus);
+            $_self.pc = $int_addr;
+            $_self.interrupts_enabled = false;
+            return;
         }
     )
 }
@@ -218,7 +229,7 @@ pub struct CPU {
 
     interrupts_enabled: bool,
 
-    cycle: u64,
+    // cycle: u64,
 }
 
 impl CPU {
@@ -234,6 +245,7 @@ impl CPU {
 
     pub fn next_instruction(&mut self, bus: &mut Bus)  {
         let opcode = self.read_opcode(bus);
+        let mut cycles = 0u8;
         println!("Read opcode {:#x} ({:#b}) at PC {:#x} ({})", opcode, opcode, self.pc - 1, self.pc - 1);
 
         match opcode {
@@ -406,7 +418,6 @@ impl CPU {
                 self.h = (addr >> 8) as u8;
                 self.l = (addr & 0xFF) as u8;
             },
-
 
             // LD B,d8.
             0x06 => self.b = self.read_byte(bus),
@@ -628,7 +639,11 @@ impl CPU {
             },
 
             // Prefix CB.
-            0xCB => self.exec_prefixed_instruction(opcode, bus),
+            0xCB => {
+                let real_opcode = self.read_byte(bus);
+                self.exec_prefixed_instruction(real_opcode);
+                cycles += DURATION_PREFIXED[real_opcode as usize];
+            },
 
             // PUSH BC.
             0xC5 => {
@@ -679,56 +694,56 @@ impl CPU {
             _ => panic!("Unknown opcode {:#x} ({:#b}) at PC {:#x} ({})", opcode, opcode, self.pc - 1, self.pc - 1),
         };
 
-        self.inc_cycle(DURATION_MAINS[opcode as usize] as u64);
-        // TODO handle higher duration time for the selected operations.
+        cycles += DURATION_MAINS[opcode as usize];
+        bus.register_cycles(cycles as u16);
 
         self.handle_timing();
     }
 
-    pub fn check_interrupt(&self, bus: &mut Bus) {
+    pub fn check_interrupt(&mut self, bus: &mut Bus) {
         if !self.interrupts_enabled {
             return;
         }
 
         let int_byte = bus.read_byte(IF_ADDR as usize);
 
-        // Bit 0: V-Blank Interrupt Request (INT 40h)  (1=Request)
+        // Bit 0: V-Blank Interrupt Request (INT 40h) (1=Request)
         if int_byte & 1 == 1 {
-            panic!("Interrupt needs to be handled: V-Blank Interrupt Request");
+            println!("Interrupt occured: V-Blank Interrupt Request");
+            interrupt!(self, bus, 0x0040);
         }
 
-        // Bit 1: LCD STAT Interrupt Request (INT 48h)  (1=Request)
+        // Bit 1: LCD STAT Interrupt Request (INT 48h) (1=Request)
         if int_byte >> 1 & 1 == 1 {
-            panic!("Interrupt needs to be handled: LCD STAT Interrupt Request");
+            println!("Interrupt occured: LCD STAT Interrupt Request");
+            interrupt!(self, bus, 0x0048);
         }
 
-        // Bit 2: Timer Interrupt Request (INT 50h)  (1=Request)
+        // Bit 2: Timer Interrupt Request (INT 50h) (1=Request)
         if int_byte >> 2 & 1 == 1 {
-            panic!("Interrupt needs to be handled: Timer Interrupt Request");
+            println!("Interrupt occured: Timer Interrupt Request");
+            interrupt!(self, bus, 0x0050);
         }
 
-        // Bit 3: Serial Interrupt Request (INT 58h)  (1=Request)
+        // Bit 3: Serial Interrupt Request (INT 58h) (1=Request)
         if int_byte >> 3 & 1 == 1 {
-            panic!("Interrupt needs to be handled: Serial Interrupt Request");
+            println!("Interrupt occured: Serial Interrupt Request");
+            interrupt!(self, bus, 0x0058);
         }
 
-        // Bit 4: Joypad Interrupt Request (INT 60h)  (1=Request)
+        // Bit 4: Joypad Interrupt Request (INT 60h) (1=Request)
         if int_byte >> 4 & 1 == 1 {
-            panic!("Interrupt needs to be handled: Joypad Interrupt Request");
+            println!("Interrupt occured: Joypad Interrupt Request");
+            interrupt!(self, bus, 0x0060);
         }
-    }
-
-    fn inc_cycle(&mut self, n: u64) {
-        self.cycle += n;
     }
 
     fn handle_timing(&self) {
         // TODO
     }
 
-    fn exec_prefixed_instruction(&mut self, opcode: u8, bus: &mut Bus)  {
-        let real_opcode = self.read_opcode(bus);
-        match real_opcode {
+    fn exec_prefixed_instruction(&mut self, opcode: u8)  {
+        match opcode {
             // RLC B.
             // 0x00 => { },
             // RLC C.
@@ -1246,10 +1261,8 @@ impl CPU {
             // SET 7,A.
             // 0xFF => { },
 
-            _ => panic!("Unknown perfixed [{:#x} ({:#b})] opcode {:#x} ({:#b})", opcode, opcode, real_opcode, real_opcode),
+            _ => panic!("Unknown perfixed opcode {:#x} ({:#b})", opcode, opcode),
         };
-
-        self.inc_cycle(DURATION_PREFIXED[real_opcode as usize] as u64);
     }
 
     fn read_opcode(&mut self, bus: &Bus) -> u8 {
@@ -1281,6 +1294,12 @@ impl CPU {
         if self.sp < STACK_BOTTOM {
             panic!("Stack pointer reached bottom: {:#x}.", self.sp);
         }
+    }
+
+    fn stack_push_d16(&mut self, dbyte: u16, bus: &mut Bus) {
+        let (addr_hi, addr_lo) = u16_to_hi_lo(dbyte);
+        self.stack_push(addr_hi, bus);
+        self.stack_push(addr_lo, bus);
     }
 
     fn stack_pop(&mut self, bus: &Bus) -> u8 {

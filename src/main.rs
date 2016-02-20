@@ -4,6 +4,7 @@
 mod bus;
 mod cpu;
 mod gameboy;
+mod timer;
 
 use std::env::{args};
 use std::fs::{File};
