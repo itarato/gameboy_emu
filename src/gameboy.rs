@@ -1,45 +1,48 @@
 use cpu::CPU;
+use cpu;
 use bus::Bus;
 use timer::Timer;
+use io::IO;
+use io;
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::fmt;
 
 const RAM_SIZE: usize = 0xFFFF;
-
-const TICK_DIV_REG: u16 = 255;
-const TICK_VBLANK: u16 = 200;
 
 pub struct GameBoy {
     cpu: CPU,
     boot_rom: Vec<u8>,
     ram: Rc<RefCell<[u8; RAM_SIZE]>>,
+    io: IO,
     bus: Bus,
 }
 
 impl GameBoy {
     pub fn new(boot_rom: Vec<u8>) -> GameBoy {
         let ram = Rc::new(RefCell::new([0; RAM_SIZE]));
-
-        let timer = Rc::new(RefCell::new(Timer::default()));
-        timer.borrow_mut().register_tick(TICK_DIV_REG);
-        timer.borrow_mut().register_tick(TICK_VBLANK);
+        let timer = Timer::default();
+        let io = IO;
 
         GameBoy {
             boot_rom: boot_rom,
             cpu: CPU::new(),
             ram: ram.clone(),
-            bus: Bus::new(ram.clone(), timer.clone()),
+            io: io,
+            bus: Bus::new(ram.clone(), timer),
         }
     }
 
     pub fn turn_on(&mut self) {
         self.cpu.reset();
         self.copy_rom_to_memory();
+        self.io.init(&mut self.bus.timer);
 
         loop {
             self.cpu.next_instruction(&mut self.bus);
             self.cpu.check_interrupt(&mut self.bus);
-            println!("{:#?}", self.cpu);
+            self.io.operate(&mut self.bus);
+            println!("{:#?}", self);
         }
     }
 
@@ -49,5 +52,15 @@ impl GameBoy {
         for idx in 0..self.boot_rom.len() {
             self.ram.borrow_mut()[idx] = self.boot_rom[idx];
         }
+    }
+}
+
+impl fmt::Debug for GameBoy {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let div = self.bus.read_byte(io::REG_DIV as usize);
+        let if_reg = self.bus.read_byte(cpu::IF_ADDR as usize);
+        write!(f, "{:#?}
+DIV: {:#010b}
+IF:  {:#010b}", self.cpu, div, if_reg)
     }
 }

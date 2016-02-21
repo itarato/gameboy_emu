@@ -8,8 +8,6 @@ struct Ticker {
 
 #[derive(Default)]
 pub struct Timer {
-    // Not sure it's necessary.
-    // cycle: u64,
     ticks: HashMap<u16, Ticker>,
 }
 
@@ -23,7 +21,6 @@ impl Timer {
     }
 
     pub fn inc(&mut self, curr_cycles: u16) {
-        // self.cycle = self.cycle.wrapping_add(cycles as u64);
         for (cycle, ticker) in self.ticks.iter_mut() {
             ticker.cycle += curr_cycles;
             if ticker.cycle >= *cycle {

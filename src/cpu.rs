@@ -117,7 +117,7 @@ const STACK_TOP: u16 = 0xFFFE;
 const STACK_BOTTOM: u16 = 0xFF80;
 
 // Address of Intterrupt flag.
-const IF_ADDR: u16 = 0xFF0F;
+pub const IF_ADDR: u16 = 0xFF0F;
 
 // Memory mapping.
 const ROM_BANK_ADDR_START: u16 = 0x0000;
