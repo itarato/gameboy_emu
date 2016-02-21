@@ -118,6 +118,8 @@ const STACK_BOTTOM: u16 = 0xFF80;
 
 // Address of Intterrupt flag.
 pub const IF_ADDR: u16 = 0xFF0F;
+// LCD Control reg.
+const LCDC_ADDR: u16 = 0xFF40;
 
 // Memory mapping.
 const ROM_BANK_ADDR_START: u16 = 0x0000;
@@ -708,7 +710,7 @@ impl CPU {
         let int_byte = bus.read_byte(IF_ADDR as usize);
 
         // Bit 0: V-Blank Interrupt Request (INT 40h) (1=Request)
-        if int_byte & 1 == 1 {
+        if int_byte & 1 == 1 && self.is_lcd_on(bus) {
             println!("Interrupt occured: V-Blank Interrupt Request");
             interrupt!(self, bus, 0x0040);
         }
@@ -736,6 +738,11 @@ impl CPU {
             println!("Interrupt occured: Joypad Interrupt Request");
             interrupt!(self, bus, 0x0060);
         }
+    }
+
+    fn is_lcd_on(&self, bus: &Bus) -> bool {
+        let lcdc = bus.read_byte(LCDC_ADDR as usize);
+        lcdc >> 7 > 0
     }
 
     fn handle_timing(&self) {
