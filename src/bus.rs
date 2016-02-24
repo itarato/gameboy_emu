@@ -2,6 +2,9 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use timer::Timer;
 use io::IO;
+use std::io::prelude::*;
+use std::fs::File;
+
 
 const MEM_MAP_ECHO_OF_INTERNAL_RAM_END: usize =   0xFDFF;
 const MEM_MAP_ECHO_OF_INTERNAL_RAM_START: usize = 0xE000;
@@ -48,6 +51,12 @@ impl Bus {
 
     pub fn register_cycles(&mut self, cycles: u16) {
         self.timer.inc(cycles);
+    }
+
+    pub fn mem_dump(&mut self) {
+        let mut f = File::create("/tmp/gameboy_emu_memdump.txt").unwrap();
+        let bytes = self.mem.borrow();
+        let _ = f.write_all(&*bytes);
     }
 
 }

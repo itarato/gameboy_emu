@@ -106,7 +106,7 @@ macro_rules! interrupt {
             let pc = $_self.pc;
             $_self.stack_push_d16(pc, $bus);
             $_self.pc = $int_addr;
-            $_self.interrupts_enabled = false;
+            $_self.ime_flag = false;
             return;
         }
     )
@@ -119,7 +119,7 @@ const STACK_BOTTOM: u16 = 0xFF80;
 // Address of Intterrupt flag.
 pub const IF_ADDR: u16 = 0xFF0F;
 // LCD Control reg.
-const LCDC_ADDR: u16 = 0xFF40;
+pub const LCDC_ADDR: u16 = 0xFF40;
 
 // Memory mapping.
 const ROM_BANK_ADDR_START: u16 = 0x0000;
@@ -229,9 +229,8 @@ pub struct CPU {
     sp: u16,
     pc: u16,
 
-    interrupts_enabled: bool,
-
-    // cycle: u64,
+    // Interrupt master enable flag.
+    ime_flag: bool,
 }
 
 impl CPU {
@@ -242,7 +241,7 @@ impl CPU {
     pub fn reset(&mut self) {
         // Point to first instruction.
         self.pc = 0x0000;
-        self.interrupts_enabled = true;
+        self.ime_flag = true;
     }
 
     pub fn next_instruction(&mut self, bus: &mut Bus)  {
@@ -319,11 +318,11 @@ impl CPU {
 
             // DI.
             // TODO check if it's a dedicated register or 0xFFFF (interrupt enable register).
-            0xF3 => self.interrupts_enabled = false,
+            0xF3 => self.ime_flag = false,
 
             // EI.
             // TODO check if it's a dedicated register or 0xFFFF (interrupt enable register).
-            0xFB => self.interrupts_enabled = true,
+            0xFB => self.ime_flag = true,
 
             // HALT.
             0x76 => panic!("HALT."),
@@ -629,6 +628,8 @@ impl CPU {
             0xF0 => {
                 let offs = self.read_byte(bus);
                 self.acc = bus.read_byte((0xFF00 | (offs as u16)) as usize);
+                bus.mem_dump();
+                panic!("Exit on mem dump.");
             },
 
             // NOP.
@@ -703,7 +704,7 @@ impl CPU {
     }
 
     pub fn check_interrupt(&mut self, bus: &mut Bus) {
-        if !self.interrupts_enabled {
+        if !self.ime_flag {
             return;
         }
 
