@@ -7,8 +7,7 @@ use io;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::fmt;
-
-const RAM_SIZE: usize = 0xFFFF;
+use constants::*;
 
 pub struct GameBoy {
     cpu: CPU,
@@ -57,16 +56,19 @@ impl GameBoy {
 
 impl fmt::Debug for GameBoy {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let div = self.bus.read_byte(io::REG_DIV as usize);
-        let if_reg = self.bus.read_byte(cpu::IF_ADDR as usize);
-        let lcdc = self.bus.read_byte(cpu::LCDC_ADDR as usize);
+        let div = self.bus.read_byte(REG_DIV as usize);
+        let if_reg = self.bus.read_byte(REG_IF_ADDR as usize);
+        let lcdc = self.bus.read_byte(REG_LCDC_ADDR as usize);
+        let stat = self.bus.read_byte(REG_STAT as usize);
         write!(f, "{:#?}
 DIV:  {:#010b}
 IF:   {:#010b}
-LCDC: {:#010b}",
+LCDC: {:#010b}
+STAT: {:#010b}",
         self.cpu,
         div,
         if_reg,
-        lcdc)
+        lcdc,
+        stat)
     }
 }

@@ -4,13 +4,7 @@ use timer::Timer;
 use io::IO;
 use std::io::prelude::*;
 use std::fs::File;
-
-
-const MEM_MAP_ECHO_OF_INTERNAL_RAM_END: usize =   0xFDFF;
-const MEM_MAP_ECHO_OF_INTERNAL_RAM_START: usize = 0xE000;
-const MEM_MAP_INTERNAL_RAM_END: usize =           0xDFFF;
-const MEM_MAP_INTERNAL_RAM_ECHO_END: usize =      0xDDFF;
-const MEM_MAP_INTERNAL_RAM_START: usize =         0xC000;
+use constants::*;
 
 fn is_in(left_inc: usize, addr: usize, right_inc: usize) -> bool {
     left_inc <= addr && addr <= right_inc
@@ -50,7 +44,7 @@ impl Bus {
     }
 
     pub fn register_cycles(&mut self, cycles: u16) {
-        self.timer.inc(cycles);
+        self.timer.inc(cycles as u64);
     }
 
     pub fn mem_dump(&mut self) {

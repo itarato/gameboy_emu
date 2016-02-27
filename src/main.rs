@@ -6,6 +6,7 @@ mod cpu;
 mod gameboy;
 mod timer;
 mod io;
+mod constants;
 
 use std::env::{args};
 use std::fs::{File};
