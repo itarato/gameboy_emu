@@ -6,11 +6,12 @@ struct Ticker {
     did_tick: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct SequenceTicker {
     lengths: Vec<u64>,
     current_phase: usize,
     current_cycle: u64,
+    did_tick: bool,
 }
 
 #[derive(Default)]
@@ -31,14 +32,17 @@ impl Timer {
     pub fn register_tick_series(&mut self, name: String, lengths: Vec<u64>) {
         let series_ticker = SequenceTicker {
             lengths: lengths,
-            current_phase: 0,
-            current_cycle: 0,
+            .. Default::default()
         };
         self.sequences.insert(name, series_ticker);
     }
 
     pub fn phase_of(&self, name: String) -> usize {
         self.sequences.get(&name).unwrap().current_phase
+    }
+
+    pub fn did_sequence_tick(&self, name: String) -> bool {
+        self.sequences.get(&name).unwrap().did_tick
     }
 
     pub fn inc(&mut self, curr_cycles: u64) {
@@ -53,7 +57,9 @@ impl Timer {
 
         for (_, seq) in self.sequences.iter_mut() {
             seq.current_cycle += curr_cycles;
+            seq.did_tick = false;
             while seq.current_cycle > seq.lengths[seq.current_phase] {
+                seq.did_tick = true;
                 seq.current_cycle -= seq.lengths[seq.current_phase];
                 seq.current_phase += 1;
                 if seq.current_phase >= seq.lengths.len() {

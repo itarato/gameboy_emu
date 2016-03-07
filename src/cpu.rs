@@ -64,7 +64,8 @@ macro_rules! dec_dd {
 macro_rules! cp {
     ($_self:expr, $cmp:expr) => (
         {
-            let res = (($_self.acc as i8) - ($cmp as i8)) as u8;
+            println!("--> CP {:#x} (acc) <-> {:#x} (cmp)", $_self.acc, $cmp);
+            let res = $_self.acc.wrapping_sub($cmp);
             $_self.flag.z_zero = $_self.acc == $cmp;
             $_self.flag.n_substract = true;
             $_self.flag.h_half_carry = res >> 4 & 1 == 0;
@@ -102,13 +103,21 @@ macro_rules! jr {
 }
 
 macro_rules! interrupt {
-    ($_self:expr, $bus:expr, $int_addr:expr) => (
+    ($_self:expr, $bus:expr, $int_addr:expr, $int_byte:expr, $int_offs:expr, $msg:expr) => (
         {
-            let pc = $_self.pc;
-            $_self.stack_push_d16(pc, $bus);
-            $_self.pc = $int_addr;
-            $_self.ime_flag = false;
-            return;
+            if $int_byte >> $int_offs & 1 == 1 {
+                println!($msg);
+
+                let int_disabled = $int_byte ^ (1 << $int_offs);
+                $bus.write_byte(REG_IF as usize, int_disabled);
+                println!("NEW IF {:#010X}", int_disabled);
+
+                let pc = $_self.pc;
+                $_self.stack_push_d16(pc, $bus);
+                $_self.pc = $int_addr;
+                $_self.ime_flag = false;
+                return;
+            }
         }
     )
 }
@@ -559,6 +568,7 @@ impl CPU {
             0xF0 => {
                 let offs = self.read_byte(bus);
                 self.acc = bus.read_byte((0xFF00 | (offs as u16)) as usize);
+                // println!("LDH A a8 <- {:#010b} from {:#x}", self.acc, (0xFF00 | (offs as u16)));
                 // bus.mem_dump();
                 // panic!("Exit on mem dump.");
             },
@@ -639,41 +649,28 @@ impl CPU {
             return;
         }
 
-        let int_byte = bus.read_byte(REG_IF_ADDR as usize);
+        let int_byte = bus.read_byte(REG_IF as usize);
 
         // Bit 0: V-Blank Interrupt Request (INT 40h) (1=Request)
-        if int_byte & 1 == 1 && self.is_lcd_on(bus) {
-            println!("Interrupt occured: V-Blank Interrupt Request");
-            interrupt!(self, bus, 0x0040);
+        if self.is_lcd_on(bus) {
+            interrupt!(self, bus, 0x0040, int_byte, 0, "Interrupt occured: V-Blank Interrupt Request");
         }
 
         // Bit 1: LCD STAT Interrupt Request (INT 48h) (1=Request)
-        if int_byte >> 1 & 1 == 1 {
-            println!("Interrupt occured: LCD STAT Interrupt Request");
-            interrupt!(self, bus, 0x0048);
-        }
+        interrupt!(self, bus, 0x0048, int_byte, 1, "Interrupt occured: LCD STAT Interrupt Request");
 
         // Bit 2: Timer Interrupt Request (INT 50h) (1=Request)
-        if int_byte >> 2 & 1 == 1 {
-            println!("Interrupt occured: Timer Interrupt Request");
-            interrupt!(self, bus, 0x0050);
-        }
+        interrupt!(self, bus, 0x0050, int_byte, 2, "Interrupt occured: Timer Interrupt Request");
 
         // Bit 3: Serial Interrupt Request (INT 58h) (1=Request)
-        if int_byte >> 3 & 1 == 1 {
-            println!("Interrupt occured: Serial Interrupt Request");
-            interrupt!(self, bus, 0x0058);
-        }
+        interrupt!(self, bus, 0x0058, int_byte, 3, "Interrupt occured: Serial Interrupt Request");
 
         // Bit 4: Joypad Interrupt Request (INT 60h) (1=Request)
-        if int_byte >> 4 & 1 == 1 {
-            println!("Interrupt occured: Joypad Interrupt Request");
-            interrupt!(self, bus, 0x0060);
-        }
+        interrupt!(self, bus, 0x0060, int_byte, 4, "Interrupt occured: Joypad Interrupt Request");
     }
 
     fn is_lcd_on(&self, bus: &Bus) -> bool {
-        let lcdc = bus.read_byte(REG_LCDC_ADDR as usize);
+        let lcdc = bus.read_byte(REG_LCDC as usize);
         lcdc >> 7 > 0
     }
 

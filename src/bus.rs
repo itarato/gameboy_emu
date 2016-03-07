@@ -28,6 +28,7 @@ impl Bus {
     }
 
     pub fn write_byte(&mut self, addr: usize, byte: u8) {
+        // println!("WRITE --> {:#04X}", addr);
         self.mem.borrow_mut()[addr] = byte;
 
         if

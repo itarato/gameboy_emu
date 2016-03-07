@@ -57,18 +57,24 @@ impl GameBoy {
 impl fmt::Debug for GameBoy {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let div = self.bus.read_byte(REG_DIV as usize);
-        let if_reg = self.bus.read_byte(REG_IF_ADDR as usize);
-        let lcdc = self.bus.read_byte(REG_LCDC_ADDR as usize);
+        let if_reg = self.bus.read_byte(REG_IF as usize);
+        let lcdc = self.bus.read_byte(REG_LCDC as usize);
         let stat = self.bus.read_byte(REG_STAT as usize);
+        let ie = self.bus.read_byte(REG_IE as usize);
+        let ly = self.bus.read_byte(REG_LY as usize);
         write!(f, "{:#?}
 DIV:  {:#010b}
 IF:   {:#010b}
 LCDC: {:#010b}
-STAT: {:#010b}",
+STAT: {:#010b}
+IE:   {:#010b}
+LY:   {:#010b}",
         self.cpu,
         div,
         if_reg,
         lcdc,
-        stat)
+        stat,
+        ie,
+        ly)
     }
 }

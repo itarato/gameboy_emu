@@ -2,21 +2,24 @@ pub const STACK_TOP: u16 = 0xFFFE;
 // TOOD verify it's true
 pub const STACK_BOTTOM: u16 = 0xFF80;
 
-// Address of Intterrupt flag.
-pub const REG_IF_ADDR: u16 = 0xFF0F;
-// LCD Control reg.
-pub const REG_LCDC_ADDR: u16 = 0xFF40;
-// LCDC Status reg.
-pub const REG_STAT: u16 = 0xFF41;
 // Divider register.
 pub const REG_DIV: u16 = 0xFF04;
+// Address of Intterrupt flag.
+pub const REG_IF: u16 = 0xFF0F;
+// LCD Control reg.
+pub const REG_LCDC: u16 = 0xFF40;
+// LCDC Status reg.
+pub const REG_STAT: u16 = 0xFF41;
+// LCDC Y-Coordinate (R).
+pub const REG_LY: u16 = 0xFF44;
+// Interrupt Enable (R/W).
+pub const REG_IE: u16 = 0xFFFF;
 
 // Memory mapping.
 pub const ROM_BANK_ADDR_START: u16 = 0x0000;
 pub const ROM_BANK_ADDR_END: u16 = 0x3FFF;
 
-pub const RAM_SIZE: usize = 0xFFFF;
-
+pub const RAM_SIZE: usize = 0x1_0000;
 
 pub const MEM_MAP_ECHO_OF_INTERNAL_RAM_END: usize =   0xFDFF;
 pub const MEM_MAP_ECHO_OF_INTERNAL_RAM_START: usize = 0xE000;
@@ -24,6 +27,7 @@ pub const MEM_MAP_INTERNAL_RAM_END: usize =           0xDFFF;
 pub const MEM_MAP_INTERNAL_RAM_ECHO_END: usize =      0xDDFF;
 pub const MEM_MAP_INTERNAL_RAM_START: usize =         0xC000;
 
+// Instruction durations.
 pub const DURATION_MAINS: [u8; 256] = [
     4, 12,  8,  8,  4,  4,  8,  4, 20,  8,  8,  8,  4,  4,  8,  4,
     4, 12,  8,  8,  4,  4,  8,  4, 12,  8,  8,  8,  4,  4,  8,  4,

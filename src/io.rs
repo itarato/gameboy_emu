@@ -51,6 +51,21 @@ impl IO {
             1 => {
                 stat_reg &= 0b1111_1101;
                 stat_reg |= 0b0000_0001;
+
+                if bus.timer.did_sequence_tick(TICK_SEQ_VIDEO_1.to_string()) {
+                    let if_reg = bus.read_byte(REG_IF as usize);
+                    bus.write_byte(REG_IF as usize, if_reg | 1);
+                    bus.write_byte(REG_LY as usize, 0);
+                } else {
+                    // Only increment LY here as we want to have one op-execution when LY is 0.
+                    let ly = bus.read_byte(REG_LY as usize);
+                    let ly = if ly >= 153 {
+                        153
+                    } else {
+                        ly + 1
+                    };
+                    bus.write_byte(REG_LY as usize, ly);
+                }
             },
             _ => panic!("Invalid Video phase."),
         };
